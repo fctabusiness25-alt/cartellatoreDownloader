@@ -1,68 +1,70 @@
 import archiver from "archiver";
 import { createClient } from "@supabase/supabase-js";
 
+export const config = {
+  runtime: "nodejs18.x"
+};
+
+// Inizializza Supabase
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_KEY
 );
 
-export const config = {
-  runtime: "nodejs"
-};
-
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Metodo non consentito" });
   }
 
   try {
     const { event_name, paths } = req.body;
 
     if (!event_name || !paths || !Array.isArray(paths)) {
-      return res.status(400).json({ error: "Parametri non validi" });
+      return res.status(400).json({ error: "Parametri mancanti o invalidi" });
     }
 
-    // Creiamo lo ZIP in memoria
+    // Genera lo ZIP in memoria
     const chunks = [];
     const archive = archiver("zip", { zlib: { level: 9 } });
 
+    archive.on("data", (chunk) => chunks.push(chunk));
     archive.on("error", (err) => {
       throw err;
     });
 
-    archive.on("data", (chunk) => chunks.push(chunk));
-
-    paths.forEach((p) => {
-      archive.append("", { name: `${p}/.keep` });
-    });
+    for (const path of paths) {
+      archive.append("", { name: path + "/" });
+    }
 
     await archive.finalize();
 
-    const buffer = Buffer.concat(chunks);
-    const filename = `${event_name}_${Date.now()}.zip`;
+    const zipBuffer = Buffer.concat(chunks);
 
-    // Carichiamo lo ZIP su Supabase Storage (bucket: zips)
-    const { error } = await supabase.storage
+    // Nome file univoco
+    const fileName = `${event_name}_${Date.now()}.zip`;
+
+    // Upload su Supabase bucket "zips"
+    const { error: uploadError } = await supabase.storage
       .from("zips")
-      .upload(filename, buffer, {
+      .upload(fileName, zipBuffer, {
         contentType: "application/zip",
         upsert: true
       });
 
-    if (error) {
-      throw error;
+    if (uploadError) {
+      console.error("Errore upload Supabase:", uploadError);
+      return res.status(500).json({ error: "Upload fallito" });
     }
 
-    const download_url = `${process.env.SUPABASE_URL}/storage/v1/object/public/zips/${filename}`;
+    // Recupera URL pubblico
+    const { data } = supabase.storage.from("zips").getPublicUrl(fileName);
 
     return res.status(200).json({
       message: "ZIP generato e caricato con successo",
-      download_url
+      download_url: data.publicUrl
     });
   } catch (err) {
-    console.error("Errore durante la generazione/upload:", err);
-    return res
-      .status(500)
-      .json({ error: "Errore nella generazione o upload dello ZIP" });
+    console.error("Errore generazione ZIP:", err);
+    return res.status(500).json({ error: "Errore interno nel generare lo ZIP" });
   }
 }
