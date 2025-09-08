@@ -1,15 +1,13 @@
 {
   "name": "cartellatore-downloader",
   "version": "1.0.0",
-  "description": "API per generare archivi ZIP con la struttura cartelle dei congressi e caricarli su Supabase Storage.",
-  "main": "api/create-zip.js",
+  "main": "index.js",
   "type": "module",
   "scripts": {
-    "dev": "vercel dev",
-    "start": "node api/create-zip.js"
+    "start": "vercel dev"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.39.0",
-    "archiver": "^5.3.1"
+    "archiver": "^5.3.1",
+    "@supabase/supabase-js": "^2.39.6"
   }
 }
