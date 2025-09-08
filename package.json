@@ -1,0 +1,9 @@
+{
+  "name": "iag-zip-api",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "archiver": "^6.0.1"
+  }
+}
