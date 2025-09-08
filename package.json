@@ -1,9 +1,15 @@
 {
-  "name": "iag-zip-api",
+  "name": "cartellatore-downloader",
   "version": "1.0.0",
+  "description": "API per generare archivi ZIP con la struttura cartelle dei congressi e caricarli su Supabase Storage.",
+  "main": "api/create-zip.js",
   "type": "module",
-  "private": true,
+  "scripts": {
+    "dev": "vercel dev",
+    "start": "node api/create-zip.js"
+  },
   "dependencies": {
-    "archiver": "^6.0.1"
+    "@supabase/supabase-js": "^2.39.0",
+    "archiver": "^5.3.1"
   }
 }
