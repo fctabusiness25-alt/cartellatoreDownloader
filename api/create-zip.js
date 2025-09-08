@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import stream from "stream";
 
 export const config = {
-  runtime: "nodejs18.x"
+  runtime: "nodejs"
 };
 
 const supabase = createClient(
