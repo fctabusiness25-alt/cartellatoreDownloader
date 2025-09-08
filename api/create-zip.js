@@ -18,7 +18,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Buffer in memoria
     const buffers = [];
     const passthrough = new PassThrough();
 
@@ -27,23 +26,24 @@ export default async function handler(req, res) {
     const archive = archiver("zip", { zlib: { level: 9 } });
     archive.pipe(passthrough);
 
-    // README iniziale
+    // Aggiungi un README
     archive.append(
       `Evento: ${event_name}\nInserisci qui le slide dei relatori nelle rispettive cartelle.\n`,
       { name: `${event_name}/README.txt` }
     );
 
-    // Crea sottocartelle
+    // Aggiungi le cartelle
     for (const original of paths) {
       const dir = `${event_name}/${original}/`;
       archive.append("", { name: `${dir}.keep` });
     }
 
-    await archive.finalize();
+    // Finalizza
+    archive.finalize();
 
-    // Attendi la fine dello stream
+    // Attendi che abbia finito
     await new Promise((resolve, reject) => {
-      archive.on("end", resolve);
+      archive.on("close", resolve);  // ✅ usare "close"
       archive.on("error", reject);
     });
 
