@@ -1,11 +1,5 @@
 import archiver from "archiver";
 
-/**
- * Vercel Serverless Function (Node.js 20)
- * POST /api/create-zip
- * Body: { "event_name": "IAG2025", "paths": ["BORGO/2/0900_A.Klos", ...] }
- * Risponde con application/zip (attachment)
- */
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
@@ -36,9 +30,7 @@ export default async function handler(req, res) {
   );
 
   const archive = archiver("zip", { zlib: { level: 9 } });
-  archive.on("error", (err) => {
-    res.status(500).end(String(err));
-  });
+  archive.on("error", (err) => res.status(500).end(String(err)));
 
   archive.pipe(res);
 
