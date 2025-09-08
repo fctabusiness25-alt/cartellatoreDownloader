@@ -7,7 +7,7 @@
     "start": "vercel dev"
   },
   "dependencies": {
-    "archiver": "^5.3.1",
-    "@supabase/supabase-js": "^2.39.6"
+    "@supabase/supabase-js": "^2.39.3",
+    "archiver": "^5.3.1"
   }
 }
