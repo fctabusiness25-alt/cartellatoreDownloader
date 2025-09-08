@@ -1,5 +1,6 @@
 import archiver from "archiver";
 import { createClient } from "@supabase/supabase-js";
+import stream from "stream";
 
 export const config = {
   runtime: "nodejs18.x"
@@ -22,15 +23,11 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Parametri non validi" });
     }
 
-    // Creiamo lo ZIP in memoria
-    const chunks = [];
+    // Creiamo lo ZIP in memoria con un PassThrough stream
+    const bufferStream = new stream.PassThrough();
     const archive = archiver("zip", { zlib: { level: 9 } });
 
-    archive.on("error", (err) => {
-      throw err;
-    });
-
-    archive.on("data", (chunk) => chunks.push(chunk));
+    archive.pipe(bufferStream);
 
     // Aggiungiamo cartelle vuote per ogni path
     paths.forEach((p) => {
@@ -39,6 +36,11 @@ export default async function handler(req, res) {
 
     await archive.finalize();
 
+    // Converte lo stream in buffer
+    const chunks = [];
+    for await (const chunk of bufferStream) {
+      chunks.push(chunk);
+    }
     const buffer = Buffer.concat(chunks);
 
     const filename = `${event_name}_${Date.now()}.zip`;
