@@ -1,5 +1,7 @@
 import archiver from "archiver";
-import { PassThrough } from "stream";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -7,55 +9,49 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method Not Allowed" });
   }
 
-  const body = req.body || {};
-  const event_name = (body.event_name || "").trim();
-  const paths = Array.isArray(body.paths) ? body.paths : [];
+  const { event_name, paths } = req.body;
 
-  if (!event_name || !paths.length) {
-    return res.status(400).json({
-      error: "Body non valido. Attesi: { event_name: string, paths: string[] }"
-    });
+  if (!event_name || !Array.isArray(paths) || paths.length === 0) {
+    return res.status(400).json({ error: "Dati mancanti" });
   }
 
   try {
-    // Buffer in memoria
-    const buffers = [];
-    const passthrough = new PassThrough();
-    passthrough.on("data", (chunk) => buffers.push(chunk));
-
+    // Genera ZIP in memoria
+    const chunks = [];
     const archive = archiver("zip", { zlib: { level: 9 } });
-    archive.pipe(passthrough);
 
-    // Aggiungi README
-    archive.append(
-      `Evento: ${event_name}\nInserisci qui le slide dei relatori nelle rispettive cartelle.\n`,
-      { name: `${event_name}/README.txt` }
-    );
+    archive.on("data", (chunk) => chunks.push(chunk));
 
-    // Aggiungi sottocartelle
+    archive.append(`Evento: ${event_name}\n`, { name: `${event_name}/README.txt` });
+
     for (const original of paths) {
-      const dir = `${event_name}/${original}/`;
-      archive.append("", { name: `${dir}.keep` });
+      archive.append("", { name: `${event_name}/${original}/.keep` });
     }
 
-    // Chiudi l'archivio
-    archive.finalize();
+    await archive.finalize();
 
-    await new Promise((resolve, reject) => {
-      archive.on("close", resolve);
-      archive.on("error", reject);
-    });
+    const zipBuffer = Buffer.concat(chunks);
+    const fileName = `${event_name}_${Date.now()}.zip`;
 
-    const zipBuffer = Buffer.concat(buffers);
-    const zipBase64 = zipBuffer.toString("base64");
+    // Upload su Supabase Storage
+    const { error } = await supabase.storage
+      .from("zips")
+      .upload(fileName, zipBuffer, {
+        contentType: "application/zip",
+        upsert: true
+      });
+
+    if (error) throw error;
+
+    // Ottieni URL pubblico
+    const { data } = supabase.storage.from("zips").getPublicUrl(fileName);
 
     res.status(200).json({
-      message: "ZIP generato con successo",
-      file_name: `${event_name}.zip`,
-      zip_base64: zipBase64
+      message: "ZIP caricato con successo",
+      download_url: data.publicUrl
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Errore nella generazione dello ZIP" });
+    res.status(500).json({ error: "Errore nella generazione o upload dello ZIP" });
   }
 }
