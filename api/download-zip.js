@@ -2,7 +2,7 @@ import archiver from "archiver";
 import { createClient } from "@supabase/supabase-js";
 
 export const config = {
-  runtime: "nodejs18.x"
+  runtime: "nodejs"
 };
 
 // Inizializza Supabase
