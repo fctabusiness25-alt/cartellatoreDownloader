@@ -1,6 +1,5 @@
 import archiver from "archiver";
-import fs from "fs";
-import path from "path";
+import { PassThrough } from "stream";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -19,29 +18,41 @@ export default async function handler(req, res) {
   }
 
   try {
-    const zipPath = path.join("/tmp", `${event_name}.zip`);
-    const output = fs.createWriteStream(zipPath);
+    // Buffer in memoria
+    const buffers = [];
+    const passthrough = new PassThrough();
+    passthrough.on("data", (chunk) => buffers.push(chunk));
+
     const archive = archiver("zip", { zlib: { level: 9 } });
+    archive.pipe(passthrough);
 
-    archive.pipe(output);
-
+    // Aggiungi README
     archive.append(
       `Evento: ${event_name}\nInserisci qui le slide dei relatori nelle rispettive cartelle.\n`,
       { name: `${event_name}/README.txt` }
     );
 
+    // Aggiungi sottocartelle
     for (const original of paths) {
       const dir = `${event_name}/${original}/`;
       archive.append("", { name: `${dir}.keep` });
     }
 
-    await archive.finalize();
+    // Chiudi l'archivio
+    archive.finalize();
 
-    output.on("close", () => {
-      res.status(200).json({
-        message: "ZIP generato con successo",
-        download_url: `https://${process.env.VERCEL_URL}/api/download-zip?file=${event_name}.zip`
-      });
+    await new Promise((resolve, reject) => {
+      archive.on("close", resolve);
+      archive.on("error", reject);
+    });
+
+    const zipBuffer = Buffer.concat(buffers);
+    const zipBase64 = zipBuffer.toString("base64");
+
+    res.status(200).json({
+      message: "ZIP generato con successo",
+      file_name: `${event_name}.zip`,
+      zip_base64: zipBase64
     });
   } catch (err) {
     console.error(err);
