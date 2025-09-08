@@ -1,15 +1,14 @@
 import archiver from "archiver";
 import { createClient } from "@supabase/supabase-js";
-import stream from "stream";
-
-export const config = {
-  runtime: "nodejs"
-};
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_KEY
 );
+
+export const config = {
+  runtime: "nodejs"
+};
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -23,28 +22,26 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Parametri non validi" });
     }
 
-    // Creiamo lo ZIP in memoria con un PassThrough stream
-    const bufferStream = new stream.PassThrough();
+    // Creiamo lo ZIP in memoria
+    const chunks = [];
     const archive = archiver("zip", { zlib: { level: 9 } });
 
-    archive.pipe(bufferStream);
+    archive.on("error", (err) => {
+      throw err;
+    });
 
-    // Aggiungiamo cartelle vuote per ogni path
+    archive.on("data", (chunk) => chunks.push(chunk));
+
     paths.forEach((p) => {
       archive.append("", { name: `${p}/.keep` });
     });
 
     await archive.finalize();
 
-    // Converte lo stream in buffer
-    const chunks = [];
-    for await (const chunk of bufferStream) {
-      chunks.push(chunk);
-    }
     const buffer = Buffer.concat(chunks);
-
     const filename = `${event_name}_${Date.now()}.zip`;
 
+    // Upload su Supabase (bucket: zips)
     const { error } = await supabase.storage
       .from("zips")
       .upload(filename, buffer, {
@@ -52,16 +49,18 @@ export default async function handler(req, res) {
         upsert: true
       });
 
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
 
     const download_url = `${process.env.SUPABASE_URL}/storage/v1/object/public/zips/${filename}`;
 
     return res.status(200).json({
-      message: "ZIP generato con successo",
+      message: "ZIP generato e caricato con successo",
       download_url
     });
   } catch (err) {
-    console.error("Errore:", err);
+    console.error("Errore durante la generazione/upload:", err);
     return res
       .status(500)
       .json({ error: "Errore nella generazione o upload dello ZIP" });
